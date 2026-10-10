@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Notes</title>
+  <style>
+    body { font: 16px/1.4 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    form label { display: block; margin: .5rem 0; }
+    input { width: 100%; padding: .4rem; }
+    li { margin: .5rem 0; }
+    [role=alert] { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Notes</h1>
+  <p data-testid="count"><span data-testid="total">{{ total }}</span> notes in total</p>
+
+  <form method="post" action="/notes" aria-label="New note">
+    <label>Title <input name="title" data-testid="title" autocomplete="off"></label>
+    <label>Body <input name="body" data-testid="body" autocomplete="off"></label>
+    <button type="submit" data-testid="save">Save note</button>
+  </form>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+
+  <h2>Recent notes</h2>
+  <ol data-testid="notes">
+    {% for note in notes %}
+    <li data-testid="note">
+      <strong data-testid="note-title">{{ note.title }}</strong>
+      <small>{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</small><br>
+      {{ note.body }}
+    </li>
+    {% endfor %}
+  </ol>
+</body>
+</html>

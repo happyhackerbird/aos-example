@@ -1,0 +1,16 @@
+# AOS repository policy (docs/directives/2026-10-04-repo-policy.md in agent-os).
+# Grants what the checks need: package caches, the Playwright browser cache, the package
+# indexes and the browser download hosts, and local ports for the app and the database.
+[execution]
+fail_closed = true
+
+[filesystem]
+write = ["$WORKTREE", "$RUN_TMP", "~/.cache/uv", "~/.cache/ms-playwright", "~/Library/Caches/ms-playwright"]
+
+[network]
+allow = ["pypi.org", "files.pythonhosted.org", "cdn.playwright.dev", "playwright.download.prss.microsoft.com"]
+local_binding = true
+
+[tools]
+web_fetch = false
+mcp = []
