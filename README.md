@@ -1,6 +1,6 @@
 # aos-example
 
-The example repository for [agent-os](https://github.com/lillyguo/agent-os) (AOS): a small
+The example repository for [agent-os](https://github.com/happyhackerbird/agent-os) (AOS): a small
 notes web app with a disposable PostgreSQL, deterministic unit tests, a browser
 verification command and a committed `aos-policy.toml`. It exists so an unattended
 AOS run can be shown end to end: edit code, install dependencies, test, launch the
@@ -61,6 +61,39 @@ appear in the list on the start page once more than five notes exist.** The unit
 `create-verification-skill` and kept by hand. Pi, Claude Code and Codex are told to read
 `.claude/skills/verify/SKILL.md` by path (see `AGENTS.md` and the AOS runner prompt), so
 one file serves all three. Its `features/` directory maps the user-facing features.
+
+## Verification contract
+
+What a runner or an operator can rely on:
+
+- **Reference commit and defect.** The default branch is `main`. The planted defect is in
+  `notes/app.py` (`index`): the start page sorts oldest-first before taking five, so a sixth
+  note never shows. Expected behaviour is newest-first; `features/recent-list.md` in the
+  verify skill describes it.
+- **Commands and exit status.**
+  `uv sync --frozen` installs (0 on success).
+  `uv run --frozen pytest -q` runs the unit tests (0 pass, 1 failures, 2+ usage errors);
+  it fails fast with a message when `DATABASE_URL` is unset.
+  `uv run --frozen python scripts/verify_browser.py` runs the browser check: 0 all checks
+  pass, 1 a check failed, 2 could not run (no `DATABASE_URL`, no Chromium).
+  `scripts/check.sh` runs both against a reset database and exits with the first failure's
+  status; on this commit it exits 1 (browser check) and the unit tests pass.
+- **Services and configuration.** One PostgreSQL 15 database named by `DATABASE_URL`
+  (`postgresql://user:pass@host:port/db`), reachable from the checkout; a Chromium build
+  for Playwright 1.63 in the Playwright cache; Docker with Compose only when nothing
+  provides `DATABASE_URL`. Network: `pypi.org`, `files.pythonhosted.org` for `uv sync`,
+  `cdn.playwright.dev` and `playwright.download.prss.microsoft.com` for the browser
+  download. The app binds a free port on `127.0.0.1`.
+- **State reset and evidence.** `scripts/db.sh reset` recreates the database;
+  `python -m notes` migrates and seeds idempotently; every test resets the table
+  (`TRUNCATE`) and reseeds. Evidence is written to `evidence/<UTC timestamp>/` under the
+  checkout, git-ignored, never deleted by the scripts.
+- **Who creates what.** The scripts create: the app server process (stopped by the script
+  that started it), the `evidence/` directory, a Compose project `COMPOSE_PROJECT_NAME`
+  (default `aos-example-<user>`) with one container and one network when they start the
+  database themselves, and `scripts/db.sh down` removes those. AOS must provision and clean
+  up: the database behind `DATABASE_URL` when the run cannot reach Docker (a policy run
+  cannot), the `~/.cache/uv` and Playwright caches it grants, and the worktree.
 
 ## Running it under AOS
 
