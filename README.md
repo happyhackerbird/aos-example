@@ -99,9 +99,11 @@ What a runner or an operator can rely on:
 
 ```sh
 aos repo set aos-example --host mac --test 'scripts/check.sh'
+printf '%s\n' 'After saving a note on the start page it is missing from the list once there are more than five notes. Repair it and add a unit test for the order of the start-page list.' > brief.md
 aos add --repo aos-example --title 'New notes do not show up on the start page' \
-  --brief 'After saving a note on the start page it is missing from the list. Fix it and add a test.' \
-  --accept 'uv sync --frozen' --accept 'scripts/check.sh'
+  --brief-file brief.md --accept 'uv sync --frozen' --accept 'scripts/check.sh'
+aos ready AO-1
+aos run AO-1 --dry-run     # prints the rendered prompt, including the verify-skill pointer, and the policy hash
 ```
 
 `aos-policy.toml` grants the uv and Playwright caches, the package index and browser
