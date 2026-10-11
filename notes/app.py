@@ -15,12 +15,20 @@ def create_app() -> Flask:
             conn.execute("SELECT 1")
         return jsonify(status="ok")
 
+    def start_page(conn, error: str | None = None) -> str:
+        """Render the start page: the total and the RECENT newest notes, newest first.
+
+        Every route that shows the list goes through here so the order is defined once:
+        `db.list_notes` already returns newest first, so the head of that list is the
+        recent list and a just-saved note is its first entry.
+        """
+        notes = db.list_notes(conn)
+        return render_template("index.html", notes=notes[:RECENT], total=len(notes), error=error)
+
     @app.get("/")
     def index():
         with db.connect() as conn:
-            notes = db.list_notes(conn)
-        recent = sorted(notes, key=lambda note: note["created_at"])[:RECENT]
-        return render_template("index.html", notes=recent, total=len(notes), error=None)
+            return start_page(conn)
 
     @app.post("/notes")
     def create():
@@ -30,9 +38,7 @@ def create_app() -> Flask:
             try:
                 db.add_note(conn, title, body)
             except ValueError as exc:
-                notes = db.list_notes(conn)
-                recent = sorted(notes, key=lambda note: note["created_at"])[:RECENT]
-                return render_template("index.html", notes=recent, total=len(notes), error=str(exc)), 400
+                return start_page(conn, error=str(exc)), 400
         return redirect(url_for("index"))
 
     @app.get("/api/notes")
