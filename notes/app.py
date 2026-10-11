@@ -19,7 +19,7 @@ def create_app() -> Flask:
     def index():
         with db.connect() as conn:
             notes = db.list_notes(conn)
-        recent = notes[:RECENT]
+        recent = sorted(notes, key=lambda note: note["created_at"])[:RECENT]
         return render_template("index.html", notes=recent, total=len(notes), error=None)
 
     @app.post("/notes")
