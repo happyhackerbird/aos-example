@@ -32,6 +32,13 @@ uv run playwright install chromium    # once per machine; skips if cached
 Docker with Compose v2 must answer `docker info`. Under a sandbox without the Docker
 socket, the runner must provide `DATABASE_URL` instead, and you skip `scripts/db.sh`.
 
+Headless Chromium cannot launch inside a macOS sandbox (Claude Code's or Codex's
+seatbelt): it dies with SIGTRAP, and `app.sh` may also fail because `ps` is denied. If
+you see either, you cannot drive the browser from here. Stop, run Cleanup, and report the
+run as not verified, naming the sandbox as the blocker. Do not substitute HTTP calls for
+the browser proof. The browser drives work on an unsandboxed macOS host and in Linux
+sandboxes.
+
 ## Launch
 
 1. Pick a run directory. It is the evidence directory too:
