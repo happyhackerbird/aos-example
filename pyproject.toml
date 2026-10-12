@@ -3,6 +3,8 @@ name = "aos-example"
 version = "0.1.0"
 description = "AOS example repository: a small notes app with a disposable PostgreSQL and a browser verification command."
 requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
   "flask>=3.1,<4",
   "psycopg[binary]>=3.2,<4",
