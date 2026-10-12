@@ -3,10 +3,13 @@
 #   app.sh start  RUN_DIR   start `python -m notes` against $DATABASE_URL, wait for /health, print the URL
 #   app.sh doctor RUN_DIR   read-only: is the server recorded in RUN_DIR ours, up, healthy, on this database?
 #   app.sh stop   RUN_DIR   stop the server recorded in RUN_DIR (idempotent); every other file stays
-# RUN_DIR holds server.pid, url, database_url and server.log. Use evidence/<UTC stamp>/ so the
-# server log is kept with the rest of the proof.
+# RUN_DIR holds server.pid, launcher.pid, detached.pid, url, database_url and server.log. Use
+# evidence/<UTC stamp>/ so the server log is kept with the rest of the proof.
+# The server runs detached (detach.py: double fork, setsid) so it outlives the shell call that
+# started it; some agent shells kill a call's process group or session when the call ends.
 set -eu
-repo=$(cd "$(dirname "$0")/../../../.." && pwd)
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/../../../.." && pwd)
 
 usage() { echo "usage: app.sh start|doctor|stop RUN_DIR" >&2; exit 2; }
 [ $# -eq 2 ] || usage
@@ -27,26 +30,37 @@ case "$cmd" in
     [ -x "$repo/.venv/bin/python" ] || { echo "no .venv; run: uv sync --frozen" >&2; exit 1; }
     if ours; then echo "already running: pid $pid, $(cat "$run/url")" >&2; exit 1; fi
     printf '%s\n' "$DATABASE_URL" >"$run/database_url"
-    (cd "$repo" && .venv/bin/python -m notes --port 0 </dev/null >"$run/url" 2>"$run/server.log" &
+    rm -f "$run/detached.pid" "$run/detached.pid.tmp" "$run/server.pid"
+    # launcher.pid: detach.py, which exits once it has written detached.pid. detached.pid:
+    # the process that execs `python -m notes`, in its own session and process group.
+    (cd "$repo" && exec .venv/bin/python "$here/detach.py" "$run/detached.pid" \
+       .venv/bin/python -m notes --port 0 </dev/null >"$run/url" 2>"$run/server.log" &
      echo $! >"$run/launcher.pid")
     launcher=$(cat "$run/launcher.pid")
+    child=""
     i=0
     while [ $i -lt 100 ]; do
-      kill -0 "$launcher" 2>/dev/null || { echo "server exited; see $run/server.log" >&2; tail -5 "$run/server.log" >&2; exit 1; }
+      if [ -z "$child" ]; then
+        if [ -s "$run/detached.pid" ]; then child=$(cat "$run/detached.pid")
+        elif ! kill -0 "$launcher" 2>/dev/null && [ ! -s "$run/detached.pid" ]; then
+          echo "launcher exited without starting the server; see $run/server.log" >&2; tail -5 "$run/server.log" >&2; exit 1
+        else sleep 0.2; i=$((i + 1)); continue; fi
+      fi
+      kill -0 "$child" 2>/dev/null || { echo "server exited; see $run/server.log" >&2; tail -5 "$run/server.log" >&2; exit 1; }
       url=$(head -1 "$run/url" 2>/dev/null || true)
       if [ -n "$url" ] && curl -fsS "$url/health" >/dev/null 2>&1; then
-        # $! can be a wrapper shell (macOS /bin/sh with `nohup cmd &` does this), so record
-        # the process that holds the port, after checking it is the launcher or its child.
+        # Record the process that holds the port, after checking it is the detached process
+        # (pid written by our detach.py into this RUN_DIR) or that process's child.
         pid=$(lsof -nP -iTCP:"${url##*:}" -sTCP:LISTEN -t | head -1)
-        if [ "$pid" != "$launcher" ] && [ "$(ps -p "$pid" -o ppid= | tr -d ' ')" != "$launcher" ]; then
-          echo "port ${url##*:} is held by pid $pid, which is not ours (launcher $launcher)" >&2; exit 1
+        if [ "$pid" != "$child" ] && [ "$(ps -p "$pid" -o ppid= | tr -d ' ')" != "$child" ]; then
+          echo "port ${url##*:} is held by pid $pid, which is not ours (detached $child, launcher $launcher)" >&2; exit 1
         fi
         echo "$pid" >"$run/server.pid"
         echo "$url"; exit 0
       fi
       sleep 0.2; i=$((i + 1))
     done
-    echo "no /health answer within 20s; see $run/server.log (launcher pid $launcher; run app.sh stop)" >&2
+    echo "no /health answer within 20s; see $run/server.log (detached pid ${child:-?}; run app.sh stop)" >&2
     exit 1
     ;;
   doctor)
@@ -70,12 +84,15 @@ case "$cmd" in
     exit $fail
     ;;
   stop)
-    # Only PIDs this script recorded: the server, then its launcher if that outlived it.
+    # Only PIDs this script recorded: the server, the detached process if start failed before
+    # recording the server, then the launcher if it is somehow still alive. Each must still
+    # be a notes server (or, for the launcher, detach.py) before it is signalled.
     stopped=""
-    for file in server.pid launcher.pid; do
+    for file in server.pid detached.pid launcher.pid; do
       [ -f "$run/$file" ] || continue
       p=$(cat "$run/$file")
-      if ps -p "$p" -o command= 2>/dev/null | grep -q -e '-m notes' -e '^/bin/sh'; then
+      if [ "$file" = launcher.pid ]; then pattern='detach\.py'; else pattern='-m notes'; fi
+      if ps -p "$p" -o command= 2>/dev/null | grep -q -e "$pattern"; then
         kill -TERM "$p" 2>/dev/null || true
         i=0
         while kill -0 "$p" 2>/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i + 1)); done

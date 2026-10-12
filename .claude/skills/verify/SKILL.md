@@ -56,13 +56,15 @@ socket, the runner must provide `DATABASE_URL` instead, and you skip `scripts/db
    .claude/skills/verify/scripts/app.sh start "$RUN"    # prints http://127.0.0.1:<port>
    ```
 
-   The script runs `.venv/bin/python -m notes --port 0` in the background. The server
+   The script runs `.venv/bin/python -m notes --port 0` detached, through
+   `.claude/skills/verify/scripts/detach.py` (double fork, own session and process
+   group), so the server survives the end of the shell call that started it. The server
    migrates the database and seeds five notes (only into an empty table), then prints its
-   URL. The script records `url`, `database_url`, `server.log`, `launcher.pid` and
-   `server.pid` in `$RUN`. `server.pid` is the process that holds the port, read with
-   `lsof` and accepted only if it is the launched process or that process's child. Do not
-   assume `$!` is the server: on macOS, `nohup python … &` under `/bin/sh` makes `$!` a
-   shell whose child is the server, and killing `$!` then leaves the server running.
+   URL. The script records `url`, `database_url`, `server.log`, `launcher.pid`,
+   `detached.pid` and `server.pid` in `$RUN`. `server.pid` is the process that holds the
+   port, read with `lsof` and accepted only if it is the detached process (the pid
+   `detach.py` wrote to `detached.pid`) or that process's child. Do not assume `$!` is the
+   server: it is `detach.py`, which exits as soon as the server is detached.
    **Ready** means the script printed the URL: `/health` answered 200. It exits 1 if the
    server dies or does not answer within 20 s. The cause is then in `$RUN/server.log`.
 
@@ -174,7 +176,7 @@ A proof must meet these standards:
 Stop only what this run started, in this order:
 
 ```sh
-.claude/skills/verify/scripts/app.sh stop "$RUN"    # TERM, then KILL after 10 s, of $RUN/server.pid, then $RUN/launcher.pid if it is still alive
+.claude/skills/verify/scripts/app.sh stop "$RUN"    # TERM, then KILL after 10 s, of $RUN/server.pid, then $RUN/detached.pid and $RUN/launcher.pid if still alive
 scripts/db.sh down                                  # removes this checkout's Compose project: container, network, tmpfs data
 ls "$RUN"                                           # the evidence is still there
 ```
