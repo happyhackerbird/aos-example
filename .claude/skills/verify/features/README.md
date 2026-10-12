@@ -1,52 +1,53 @@
 # Notes verification map
 
-This directory is the maintained source for verifying the user-facing behaviour of the
-aos-example notes app. Read this index before driving the app, then use the matching
-feature file as the recipe. The driving harness is Playwright (Python, headless Chromium)
-for the browser and `curl` for HTTP; `../SKILL.md` has Launch, Doctor and Cleanup.
+This directory is the maintained source for verifying what a user of the notes app can
+do. Read this index before driving the app, then use the matching feature file as the
+recipe. `../SKILL.md` covers launch, doctor, evidence and cleanup.
 
 ## Baseline preconditions
 
-- The app was started by this run with `python -m notes --port 0` and `$URL` is its printed
-  base URL; `curl -fsS "$URL/health"` answers `{"status":"ok"}`.
-- `DATABASE_URL` names a disposable database (`scripts/db.sh up`) or one the runner
-  provided; it holds the five seed notes: `Buy milk`, `Call the plumber`, `Renew passport`,
-  `Book the dentist`, `Water the plants` (oldest to newest, ten minutes apart).
-- Never drive an instance this run did not start.
+- Run all commands from the repository root after `uv sync --frozen`.
+- Use a fresh disposable database: `export DATABASE_URL=$(scripts/db.sh reset)`. It
+  starts empty, and the server seeds five notes on start: "Buy milk", "Call the
+  plumber", "Renew passport", "Book the dentist" and "Water the plants". "Water the
+  plants" is the newest of the five, and each is 10 minutes newer than the one before.
+- Start the server with `RUN=evidence/$(date -u +%Y%m%dT%H%M%SZ)` and
+  `.claude/skills/verify/scripts/app.sh start "$RUN"`.
+- Run `.claude/skills/verify/scripts/app.sh doctor "$RUN"` and require every line to be `ok`.
+- Never drive a server or a database that this run did not start.
 
 ## Driving conventions
 
-- Start every recipe from the baseline unless its preconditions say otherwise.
-- Prefer `data-testid` handles (`title`, `body`, `save`, `total`, `notes`, `note`,
-  `note-title`) and accessible names (`New note` form, `Save note` button) over CSS
-  position.
-- Treat every command as literal; keep quoted values unchanged.
-- Browser actions run through Playwright in a fresh context; HTTP actions through `curl`.
-- A mutation needs a second view: `GET /api/notes` or a SQL count.
+- Every recipe starts from the baseline unless its preconditions say otherwise.
+  Recipes add notes and never delete them. A second recipe on the same database sees
+  more notes than five; the recipes allow for that.
+- Use `data-testid` handles and ARIA roles, never positions. The full table is in
+  `../SKILL.md` under Drive.
+- Drive through the start-page form. `/api/notes` and the `notes` table are only
+  second views of the result.
+- `drive.py <feature> "$RUN"` runs a whole recipe and writes `$RUN/<feature>/`.
 
 ## Proof and skip reporting
 
-- Capture the user action and the resulting state, not only the final screen.
-- UI proof is a full-page screenshot plus the page HTML, with the note title visible.
-- HTTP proof is the command, the status code and the body.
-- Record the feature ID and the entry point used with every artifact, under
-  `evidence/<UTC timestamp>/`.
-- Report an unreachable path with the attempted command and the unmet precondition. Do not
-  report a skipped entry point as verified through a different path.
+- Capture the user action and the state it produced: the before, filled and after
+  screenshots, plus ARIA snapshots.
+- A mutation proof includes a read of the stored row (`notes` table) and of `/api/notes`.
+- Record the feature, the entry point, the evidence path and the exit status of every
+  command.
+- If an entry point cannot be reached, report the command you tried and the precondition
+  that was not met. Do not report it as verified through some other path.
 
 ## Feature entry contract
 
-Each feature file starts with an H1 title and one paragraph describing the user-visible
-behaviour, then exactly four H2 sections in this order: `Sub-features`, `How to get to it
-(user POV)`, `Driving it with Playwright and curl` (starting with `Preconditions:`), and
-`Gotchas`. Keep implementation details out; name user paths, stable handles, required state,
-commands and observable proof.
+Each feature file starts with an H1 and one paragraph on the user-visible behaviour, then
+four H2s in this order: `Sub-features`, `How to get to it (user POV)`,
+`Driving it with Playwright`, `Gotchas`. The driving section starts with
+`Preconditions:` and pairs each user action with an exact command or handle and the
+observable result.
 
 ## Features
 
-- [Create a note](./create-note.md) covers saving from the form, the empty-title rejection,
-  and the HTTP form post.
-- [Recent notes list](./recent-list.md) covers the start page list, its order and size, and
-  the total count.
-- [Health and notes API](./health-and-api.md) covers the readiness endpoint and the JSON
-  listing used as second-view proof.
+- [Create a note](./create-note.md): the form saves a note, the page and the table both show it.
+- [Recent notes list](./recent-list.md): the start page shows the five newest notes, newest first. **Fails on `main` (planted defect).**
+- [Reject an empty title](./empty-title.md): a blank title is refused with an alert and nothing is stored.
+- [JSON API and health](./api-health.md): `/api/notes` returns every note newest first, and `/health` reports the database reachable.
