@@ -17,8 +17,8 @@ Notes live in one PostgreSQL table; `notes/db.py` is the whole data layer.
 | Tool | Pinned where |
 |---|---|
 | Python 3.12 and [uv](https://docs.astral.sh/uv/) | `.python-version`, `uv.lock` |
-| Docker with Compose v2 | `compose.yaml` pins `postgres:15-alpine` by digest |
-| Chromium for Playwright | `playwright==1.63.0` in `uv.lock`; `uv run playwright install chromium` once |
+| Docker with Compose v2 (host only; under AOS the runner provides the database) | `compose.yaml` pins `postgres:15-alpine` by digest |
+| Chromium for Playwright | `playwright==1.63.0` in `uv.lock`; `uv run playwright install chromium` once on a host (preinstalled in the AOS sandbox image) |
 
 ## Quick start
 
@@ -106,10 +106,34 @@ aos ready AO-1
 aos run AO-1 --dry-run     # prints the rendered prompt, including the verify-skill pointer, and the policy hash
 ```
 
-`aos-policy.toml` grants the uv and Playwright caches, the package index and browser
-download hosts, and local binding for the app and database ports. Under a policy run the
-agent cannot reach the Docker socket, so the runner has to provide `DATABASE_URL`; without
-one `scripts/check.sh` starts Compose itself and fails inside the sandbox.
+`aos-policy.toml` is the committed v2 policy for the OpenShell sandbox backend. It is
+fail-closed and grants network access to `pypi.org:443` and `files.pythonhosted.org:443`
+only (for `uv sync --frozen`). Nothing else is reachable.
+
+Inside the sandbox the image provides uv, Python 3.12 and Playwright's Chromium, and the
+runner starts a per-run PostgreSQL and exposes `DATABASE_URL` (via `/sandbox/services.env`).
+There is no Docker socket, so `scripts/db.sh` is not used; `scripts/check.sh` takes the
+provided `DATABASE_URL`.
+
+Before queueing a task, the AOS operator creates two git-ignored files in the source
+checkout (this repository cannot carry them, it ignores `.aos/`):
+
+```
+# .aos/services.toml  (git-ignored)
+[postgres]
+```
+
+```
+# .aos/evidence.toml  (git-ignored)
+dir = "evidence"
+```
+
+The acceptance command is `bash scripts/check.sh`. The agent writes proof to
+`evidence/<stamp>/` and ends its final message with `Evidence directory: evidence/<stamp>`;
+the runner copies that directory out before the sandbox is deleted.
+
+On an unmodified `main` the acceptance check is expected to FAIL (the planted defect). The
+branch `solution` carries the reference fix and passes.
 
 ## Layout
 

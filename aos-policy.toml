@@ -1,16 +1,8 @@
-# AOS repository policy (docs/directives/2026-10-04-repo-policy.md in agent-os).
-# Grants what the checks need: package caches, the Playwright browser cache, the package
-# indexes and the browser download hosts, and local ports for the app and the database.
+# AOS repository policy (v2, OpenShell sandbox backend).
+# The sandbox image already has uv, Python 3.12 and Playwright's Chromium, and the runner
+# provides the database, so the only network the checks need is the package index.
 [execution]
 fail_closed = true
 
-[filesystem]
-write = ["$WORKTREE", "$RUN_TMP", "~/.cache/uv", "~/.cache/ms-playwright", "~/Library/Caches/ms-playwright"]
-
 [network]
-allow = ["pypi.org", "files.pythonhosted.org", "cdn.playwright.dev", "playwright.download.prss.microsoft.com"]
-local_binding = true
-
-[tools]
-web_fetch = false
-mcp = []
+allow = ["pypi.org:443", "files.pythonhosted.org:443"]

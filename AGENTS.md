@@ -8,7 +8,8 @@
 - **Commands:** `uv sync --frozen` installs; `scripts/db.sh up|url|reset|down` manages the
   disposable PostgreSQL; `uv run --frozen pytest -q` runs the unit tests;
   `uv run --frozen python scripts/verify_browser.py` runs the browser verification;
-  `scripts/check.sh` runs everything against a fresh database.
+  `scripts/check.sh` runs everything against a fresh database. Under AOS `DATABASE_URL` is
+  provided by the runner; skip `scripts/db.sh`.
 - **Report with evidence.** Name the `evidence/<timestamp>/` directory in your result.
   Prose is not verification.
 - **Stop what you started, never by process name.** Leave `evidence/` in place.

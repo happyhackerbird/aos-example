@@ -165,7 +165,7 @@ def main() -> int:
     proof = Proof(out)
     with sync_playwright() as playwright:
         try:
-            browser = playwright.chromium.launch()
+            browser = playwright.chromium.launch(args=["--no-zygote", "--disable-gpu"])
         except PlaywrightError as exc:
             print(f"cannot launch Chromium: {exc}\nrun: uv run playwright install chromium", file=sys.stderr)
             return 2

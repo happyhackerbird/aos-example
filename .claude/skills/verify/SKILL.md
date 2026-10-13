@@ -26,11 +26,19 @@ the task is to fix that defect.
 
 ```sh
 uv sync --frozen                      # creates .venv; exit 0
-uv run playwright install chromium    # once per machine; skips if cached
+uv run playwright install chromium    # host only: once per machine; skips if cached
 ```
 
-Docker with Compose v2 must answer `docker info`. Under a sandbox without the Docker
-socket, the runner must provide `DATABASE_URL` instead, and you skip `scripts/db.sh`.
+`playwright install chromium` is for a host. Under AOS on OpenShell the browser is
+preinstalled (the image sets `PLAYWRIGHT_BROWSERS_PATH`), so skip that step.
+
+On a host, Docker with Compose v2 must answer `docker info`.
+
+### Under AOS (OpenShell sandbox)
+
+`DATABASE_URL` is already set by the runner (from `/sandbox/services.env`). Do not run
+`scripts/db.sh` at all: there is no Docker socket. The database is per-run and is reset
+before acceptance.
 
 Headless Chromium cannot launch inside a macOS sandbox (Claude Code's or Codex's
 seatbelt): it dies with SIGTRAP, and `app.sh` may also fail because `ps` is denied. If
@@ -163,6 +171,10 @@ script here ever deletes it:
   JSON bodies where relevant, and `result.txt` (PASS/FAIL lines plus the values compared).
 - `scripts/verify_browser.py` writes its own `evidence/<stamp>/` with `01-start-page.png`,
   `02-after-save.png`, `after-save.html`, `server.log`, `result.txt`.
+
+End your final report with the line `Evidence directory: evidence/<stamp>`, naming the run
+directory you wrote. The runner reads the last such line and flags the run if the
+directory is missing or empty.
 
 A proof must meet these standards:
 
