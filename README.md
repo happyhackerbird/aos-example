@@ -103,7 +103,7 @@ printf '%s\n' 'After saving a note on the start page it is missing from the list
 aos add --repo aos-example --title 'New notes do not show up on the start page' \
   --brief-file brief.md --accept 'uv sync --frozen' --accept 'scripts/check.sh'
 aos ready AO-1
-aos run AO-1 --dry-run     # prints the rendered prompt, including the verify-skill pointer, and the policy hash
+aos run AO-1               # runs the task in an OpenShell sandbox under aos-policy.toml (--dry-run is a host-route option and is refused here)
 ```
 
 `aos-policy.toml` is the committed v2 policy for the OpenShell sandbox backend. It is
